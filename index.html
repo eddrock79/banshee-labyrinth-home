@@ -99,11 +99,12 @@
   .joke-btn:hover{color:var(--text);}
   .muted-text{font-size:13px;color:var(--muted);font-style:italic;}
 </style>
+<script src="https://eddrock79.github.io/banshee-labyrinth-home/bl-auth.js"></script>
 </head>
 <body>
 
 <!-- PIN SCREEN — unchanged from original -->
-<div id="pin-screen">
+<div id="pin-screen" style="display:none">
   <div class="pin-logo">⚡ Banshee</div>
   <div class="pin-sub">Staff Hub</div>
   <div class="pin-dots">
@@ -144,6 +145,8 @@
     <span class="nav-btn current">🏠 Home</span>
     <a class="nav-btn" id="nav-wj" href="#">📋 Weekly Jobs</a>
     <a class="nav-btn" href="https://eddrock79.github.io/banshee-labyrinth-end-of-night">🌙 End Of Night</a>
+    <a class="nav-btn" href="https://eddrock79.github.io/banshee-labyrinth-rotas">📅 Rotas</a>
+    <a class="nav-btn" href="https://eddrock79.github.io/banshee-labyrinth-cocktails">🍸 Cocktails</a>
     <a class="nav-btn mgr" id="nav-dash" href="https://eddrock79.github.io/banshee-labyrinth-dashboard" style="display:none">📊 Dashboard</a>
     <button class="nav-btn" onclick="logOut()" style="cursor:pointer;color:var(--red);border-color:var(--red)">🔒 Log Out</button>
   </div>
@@ -266,22 +269,12 @@ async function loadPINFromSheet(id){
 }
 
 // ── BOOT ──
-(async function boot(){
+(function boot(){
   const urlParams=new URLSearchParams(window.location.search);
   const urlSheet=urlParams.get('sheet');
   if(urlSheet)localStorage.setItem(SHEET_ID_KEY,urlSheet);
   sheetId=localStorage.getItem(SHEET_ID_KEY)||'';
-
-  if(sessionStorage.getItem('bl_home_unlocked')==='yes'){
-    isManager=sessionStorage.getItem('bl_home_super')==='yes';
-    showApp();return;
-  }
-  const loadingEl=document.getElementById('pin-loading');
-  const keypad=document.getElementById('pin-keypad');
-  if(sheetId){loadingEl.textContent='Loading...';await loadPINFromSheet(sheetId);}
-  else{livePin='1234';liveSuper='1111';}
-  loadingEl.textContent='Enter PIN';
-  keypad.style.opacity='1';keypad.style.pointerEvents='auto';
+  BLAuth.init({appName:'Staff Hub', require:'staff', onReady:function(){ showApp(); }});
 })();
 
 // ── PIN ──
@@ -308,11 +301,7 @@ function checkPIN(){
 
 // ── SUPERVISOR MODAL ──
 function requestNoticeEdit(){
-  if(sessionStorage.getItem('bl_home_super')==='yes'){openNoticeEdit();return;}
-  if(!liveSuper&&sheetId)loadPINFromSheet(sheetId).then(()=>{document.getElementById('super-modal').style.display='flex';});
-  else document.getElementById('super-modal').style.display='flex';
-  superEntry='';updateDots('spd',superEntry);
-  document.getElementById('super-error').textContent='';
+  BLAuth.requireManager(function(){ isManager=true; openNoticeEdit(); }, 'Manager PIN to edit the notice board');
 }
 function superKey(d){if(superEntry.length>=4)return;superEntry+=d;updateDots('spd',superEntry);if(superEntry.length===4)setTimeout(checkSuper,120);}
 function superDel(){superEntry=superEntry.slice(0,-1);updateDots('spd',superEntry);document.getElementById('super-error').textContent='';}
@@ -330,6 +319,7 @@ function closeSuperModal(){document.getElementById('super-modal').style.display=
 
 // ── SHOW APP ──
 function showApp(){
+  isManager=BLAuth.isManager();
   document.getElementById('pin-screen').classList.add('hidden');
   document.getElementById('app').style.display='block';
   document.getElementById('topbar-date').textContent=new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
@@ -452,7 +442,7 @@ function logOut(){
   sessionStorage.removeItem('bl_home_unlocked');
   sessionStorage.removeItem('bl_home_super');
   sessionStorage.removeItem('bl_home_role');
-  location.reload();
+  BLAuth.logout();
 }
 // ── JOKE — fetches from JokeAPI, falls back to built-in list ──
 const FALLBACK_JOKES=[
