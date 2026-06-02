@@ -354,8 +354,8 @@ function showApp(){
   renderEvents();
   loadWeather();
   loadJoke();
-  // pull the shared notice from the sheet, then re-render the notice board
-  fetchShared().then(()=>{ loadNotice(); });
+  // pull the shared notice + handover from the sheet, then re-render both
+  fetchShared().then(()=>{ loadNotice(); renderHandover(); });
 }
 
 // ── SHARED NOTICE BOARD + HANDOVER (synced via notes sheet) ──
@@ -431,21 +431,25 @@ async function saveNotice(){
 }
 
 // ── HANDOVER NOTES ──
+// Read-only aggregation of the per-day handover notes written in Weekly Jobs
+// and End Of Night, synced via the notes sheet (cached in HANDOVER_CACHE by
+// fetchShared). Home never edits these — it only ever shows what's combined.
 function renderHandover(){
-  // Device-local for now (unchanged). Handover cross-device sync is a separate
-  // future change that also needs Weekly + EON to write their day-notes centrally.
   const el=document.getElementById('handover-content');
-  let notes=[];
-  try{notes=JSON.parse(localStorage.getItem(HANDOVER_KEY)||'[]');}catch(e){}
-  notes=notes.filter(n=>n&&n.text&&n.text.trim());
-  notes.sort((a,b)=>(b.ts||0)-(a.ts||0));
-  if(!notes.length){el.innerHTML='<div class="muted-text">No handover notes this week.</div>';return;}
-  el.innerHTML=notes.map(n=>`
-    <div class="note-item">
-      <div class="note-src">${escHtml(n.source||'Staff note')}</div>
-      <div class="note-text">${escHtml(n.text||'')}</div>
-      <div class="note-time">${escHtml(n.time||'')}</div>
-    </div>`).join('');
+  const notes=cachedHandover().filter(n=>n && (n.note||n.text));
+  if(!notes.length){
+    el.innerHTML='<div class="muted-text">No handover notes'+(sharedSyncFailed?' (offline — showing last saved)':'')+'.</div>';
+    return;
+  }
+  const banner=sharedSyncFailed?'<div class="muted-text" style="color:var(--red);margin-bottom:6px">⚠ Couldn’t sync — showing last saved copy</div>':'';
+  el.innerHTML=banner+notes.map(n=>{
+    const label=[n.src,n.day].filter(Boolean).join(' · ') || n.date || 'Handover note';
+    return `<div class="note-item">
+      <div class="note-src">${escHtml(label)}</div>
+      <div class="note-text">${escHtml(tidyNote(n.note||n.text||''))}</div>
+      ${n.time?`<div class="note-time">${escHtml(n.time)}</div>`:''}
+    </div>`;
+  }).join('');
 }
 
 
