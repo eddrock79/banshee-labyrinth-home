@@ -444,10 +444,11 @@ function renderHandover(){
   const banner=sharedSyncFailed?'<div class="muted-text" style="color:var(--red);margin-bottom:6px">⚠ Couldn’t sync — showing last saved copy</div>':'';
   el.innerHTML=banner+notes.map(n=>{
     const label=[n.src,n.day].filter(Boolean).join(' · ') || n.date || 'Handover note';
+    const meta=[n.author,n.time].filter(Boolean).join(' · ');
     return `<div class="note-item">
       <div class="note-src">${escHtml(label)}</div>
       <div class="note-text">${escHtml(tidyNote(n.note||n.text||''))}</div>
-      ${n.time?`<div class="note-time">${escHtml(n.time)}</div>`:''}
+      ${meta?`<div class="note-time">${escHtml(meta)}</div>`:''}
     </div>`;
   }).join('');
 }
