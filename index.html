@@ -227,6 +227,13 @@
 const SHEET_ID_KEY='bl_home_sheet_id';
 const HANDOVER_KEY='bl_handover_notes';
 
+// Shared Notice Board + Handover, synced via the dedicated notes sheet's Apps Script.
+// Paste the deployed /exec URL of notes-AppsScript.gs here:
+const NOTES_SCRIPT_URL='PASTE_NOTES_SCRIPT_EXEC_URL_HERE';
+const NOTICE_CACHE='bl_notice_list';     // cached JSON of the notice entries
+const HANDOVER_CACHE='bl_handover_list'; // cached JSON of the handover entries
+let sharedSyncFailed=false;
+
 // ── EVENTS — update these whenever gigs/cinema change ──
 const EVENTS=[
   {date:'Jun 7',name:'Edinburgh Beer Festival',desc:'Meadowbank — potential busy night after'},
@@ -347,34 +354,79 @@ function showApp(){
   renderEvents();
   loadWeather();
   loadJoke();
+  // pull the shared notice from the sheet, then re-render the notice board
+  fetchShared().then(()=>{ loadNotice(); });
 }
 
-// ── NOTICE BOARD ──
+// ── SHARED NOTICE BOARD + HANDOVER (synced via notes sheet) ──
+function fmtList(entries, emptyMsg){
+  if(!entries||!entries.length){
+    return '<div class="muted-text">'+emptyMsg+(sharedSyncFailed?' (offline — showing last saved)':'')+'</div>';
+  }
+  const banner=sharedSyncFailed?'<div class="muted-text" style="color:var(--red);margin-bottom:6px">⚠ Couldn’t sync — showing last saved copy</div>':'';
+  return banner+entries.map(n=>`
+    <div class="note-item">
+      <div class="note-src">${escHtml(n.date||'')}</div>
+      <div class="note-text">${escHtml(n.note||'')}</div>
+    </div>`).join('');
+}
+
+async function fetchShared(){
+  try{
+    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),8000);
+    const res=await fetch(NOTES_SCRIPT_URL+'?action=getShared&_='+Date.now(),{signal:ctrl.signal});
+    clearTimeout(t);
+    const data=await res.json();
+    if(!data.ok) throw new Error(data.error||'bad response');
+    sharedSyncFailed=false;
+    localStorage.setItem(NOTICE_CACHE,JSON.stringify(data.notice||[]));
+    localStorage.setItem(HANDOVER_CACHE,JSON.stringify(data.notes||[]));
+    return data;
+  }catch(e){
+    sharedSyncFailed=true;
+    return null;
+  }
+}
+
+function cachedNotice(){ try{return JSON.parse(localStorage.getItem(NOTICE_CACHE)||'[]');}catch(e){return [];} }
+function cachedHandover(){ try{return JSON.parse(localStorage.getItem(HANDOVER_CACHE)||'[]');}catch(e){return [];} }
+
 function loadNotice(){
-  const saved=localStorage.getItem('bl_notice')||'';
-  const el=document.getElementById('notice-content');
-  if(saved.trim()){el.textContent=saved;el.classList.remove('empty');}
-  else{el.textContent='No notices today.';el.classList.add('empty');}
+  document.getElementById('notice-content').innerHTML=fmtList(cachedNotice(),'No notices in the last 10 days.');
 }
 function openNoticeEdit(){
-  document.getElementById('notice-textarea').value=localStorage.getItem('bl_notice')||'';
+  document.getElementById('notice-textarea').value='';
+  document.getElementById('notice-textarea').placeholder='Type a new notice — it will be dated today and added to the top…';
   document.getElementById('notice-content').style.display='none';
   document.getElementById('notice-textarea').style.display='block';
   document.getElementById('notice-save-btn').style.display='inline-block';
   document.getElementById('notice-edit-btn').style.display='none';
 }
-function saveNotice(){
+async function saveNotice(){
   const val=document.getElementById('notice-textarea').value.trim();
-  localStorage.setItem('bl_notice',val);
+  const btn=document.getElementById('notice-save-btn');
   document.getElementById('notice-content').style.display='block';
   document.getElementById('notice-textarea').style.display='none';
   document.getElementById('notice-save-btn').style.display='none';
   document.getElementById('notice-edit-btn').style.display=isManager?'inline-block':'none';
+  if(val){
+    try{
+      const res=await fetch(NOTES_SCRIPT_URL,{method:'POST',body:JSON.stringify({board:'notice',note:val})});
+      const data=await res.json();
+      if(data.ok){
+        sharedSyncFailed=false;
+        localStorage.setItem(NOTICE_CACHE,JSON.stringify(data.notice||[]));
+        localStorage.setItem(HANDOVER_CACHE,JSON.stringify(data.notes||[]));
+      } else { sharedSyncFailed=true; }
+    }catch(e){ sharedSyncFailed=true; }
+  }
   loadNotice();
 }
 
 // ── HANDOVER NOTES ──
 function renderHandover(){
+  // Device-local for now (unchanged). Handover cross-device sync is a separate
+  // future change that also needs Weekly + EON to write their day-notes centrally.
   const el=document.getElementById('handover-content');
   let notes=[];
   try{notes=JSON.parse(localStorage.getItem(HANDOVER_KEY)||'[]');}catch(e){}
@@ -388,6 +440,7 @@ function renderHandover(){
       <div class="note-time">${escHtml(n.time||'')}</div>
     </div>`).join('');
 }
+
 
 // ── EVENTS ──
 function renderEvents(){
