@@ -78,17 +78,17 @@
   /* Notice board */
   .notice-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
   .notice-edit-btn{font-size:12px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;font-family:'DM Sans',sans-serif;}
-  .notice-content{font-size:14px;color:var(--text);line-height:1.7;white-space:pre-wrap;min-height:36px;}
+  .notice-content{font-size:14px;color:var(--text);line-height:1.6;}
   .notice-content.empty{color:var(--muted);font-style:italic;}
-  .notice-textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:12px;line-height:1.7;resize:vertical;min-height:90px;display:none;}
+  .notice-textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:12px;line-height:1.6;resize:vertical;min-height:80px;display:none;}
   .notice-textarea:focus{outline:none;border-color:var(--accent);}
   .notice-save-btn{margin-top:8px;display:none;padding:8px 18px;background:var(--accent);color:#000;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;}
 
   /* Handover notes */
-  .note-item{padding:9px 12px 9px 13px;border-left:3px solid var(--accent);border-radius:0 7px 7px 0;background:var(--surface2);margin-bottom:7px;}
+  .note-item{padding:8px 12px;border-left:3px solid var(--accent);border-radius:0 7px 7px 0;background:var(--surface2);margin-bottom:6px;}
   .note-item:last-child{margin-bottom:0;}
-  .note-src{font-size:10px;color:var(--accent);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;}
-  .note-text{font-size:13px;color:var(--text);line-height:1.5;white-space:pre-wrap;}
+  .note-src{font-size:10px;color:var(--accent);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;}
+  .note-text{font-size:13px;color:var(--text);line-height:1.45;white-space:pre-wrap;}
   .note-time{font-size:10px;color:var(--muted);margin-top:3px;}
 
   /* Joke */
@@ -359,6 +359,13 @@ function showApp(){
 }
 
 // ── SHARED NOTICE BOARD + HANDOVER (synced via notes sheet) ──
+function tidyNote(t){
+  return (t||'')
+    .replace(/\r/g,'')
+    .replace(/[ \t]+\n/g,'\n')   // strip trailing spaces on lines
+    .replace(/\n{3,}/g,'\n\n')   // collapse 3+ blank lines to one gap
+    .trim();                     // drop leading/trailing blank lines
+}
 function fmtList(entries, emptyMsg){
   if(!entries||!entries.length){
     return '<div class="muted-text">'+emptyMsg+(sharedSyncFailed?' (offline — showing last saved)':'')+'</div>';
@@ -367,7 +374,7 @@ function fmtList(entries, emptyMsg){
   return banner+entries.map(n=>`
     <div class="note-item">
       <div class="note-src">${escHtml(n.date||'')}</div>
-      <div class="note-text">${escHtml(n.note||'')}</div>
+      <div class="note-text">${escHtml(tidyNote(n.note||''))}</div>
     </div>`).join('');
 }
 
