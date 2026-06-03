@@ -234,14 +234,22 @@ const NOTICE_CACHE='bl_notice_list';     // cached JSON of the notice entries
 const HANDOVER_CACHE='bl_handover_list'; // cached JSON of the handover entries
 let sharedSyncFailed=false;
 
-// ── EVENTS — update these whenever gigs/cinema change ──
-const EVENTS=[
-  {date:'Jun 7',name:'Edinburgh Beer Festival',desc:'Meadowbank — potential busy night after'},
-  {date:'Jun 14',name:'Edinburgh Jazz & Blues Festival',desc:'City-wide — starts this weekend'},
-  {date:'Jun 21',name:'Summer Solstice',desc:'Longest day — expect a late crowd'},
-  {date:'Jul 4',name:'Edinburgh Fringe Opens',desc:'City gets very busy from here'},
-  {date:'Aug 2',name:'Bank Holiday Weekend',desc:'Scotland public holiday — all hands on deck'},
-];
+// ── EVENTS — auto-fed from the rota's room rows (events.json, published by the NAS) ──
+const EVENTS_URL='https://eddrock79.github.io/banshee-labyrinth-rotas/events.json';
+const EVENTS_CACHE='bl_events';
+let eventsFailed=false;
+function cachedEvents(){ try{return JSON.parse(localStorage.getItem(EVENTS_CACHE)||'[]');}catch(e){return [];} }
+async function loadEvents(){
+  renderEvents();                                   // show cached copy immediately
+  try{
+    const res=await fetch(EVENTS_URL+'?t='+Date.now());
+    if(!res.ok) throw new Error('http '+res.status);
+    const data=await res.json();
+    localStorage.setItem(EVENTS_CACHE,JSON.stringify(data.events||[]));
+    eventsFailed=false;
+  }catch(e){ eventsFailed=true; }
+  renderEvents();
+}
 
 let livePin=null, liveSuper=null, pinEntry='', superEntry='', sheetId='', isManager=false;
 
@@ -351,7 +359,7 @@ function showApp(){
 
   loadNotice();
   renderHandover();
-  renderEvents();
+  loadEvents();
   loadWeather();
   loadJoke();
   // pull the shared notice + handover from the sheet, then re-render both
@@ -459,26 +467,28 @@ function renderEvents(){
   const el=document.getElementById('events-content');
   const now=new Date();
   const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-  const MONTHS={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
   const DAY_NAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  const upcoming=EVENTS.map(e=>{
-    const parts=e.date.split(' ');
-    const d=new Date(now.getFullYear(),MONTHS[parts[1]],parseInt(parts[0]));
-    return{...e,d};
-  }).filter(e=>e.d>=today).sort((a,b)=>a.d-b.d).slice(0,6);
+  const upcoming=cachedEvents().map(e=>{
+    const p=(e.date||'').split('-');                 // YYYY-MM-DD
+    return {...e, d:new Date(+p[0],(+p[1])-1,+p[2])};
+  }).filter(e=>!isNaN(e.d) && e.d>=today).sort((a,b)=>a.d-b.d).slice(0,12);
 
-  if(!upcoming.length){el.innerHTML='<div class="muted-text">No upcoming events.</div>';return;}
+  if(!upcoming.length){
+    el.innerHTML='<div class="muted-text">No upcoming events'+(eventsFailed?' (offline — showing last saved)':'')+'.</div>';
+    return;
+  }
 
   el.innerHTML=upcoming.map(e=>{
     const isToday=e.d.toDateString()===today.toDateString();
-    const isTomorrow=e.d.toDateString()===new Date(today.getFullYear(),today.getMonth(),today.getDate()+1).toDateString();
-    const label=isToday?'TODAY ◀':isTomorrow?'TOMORROW':`${DAY_NAMES[e.d.getDay()]} ${e.date}`;
+    const isTom=e.d.toDateString()===new Date(today.getFullYear(),today.getMonth(),today.getDate()+1).toDateString();
+    const lbl=isToday?'TODAY ◀':isTom?'TOMORROW':`${DAY_NAMES[e.d.getDay()]} ${e.d.getDate()} ${MON[e.d.getMonth()]}`;
     return`<div class="event-item">
-      <div class="event-date" style="${isToday?'color:var(--accent)':''}">${label}</div>
+      <div class="event-date" style="${isToday?'color:var(--accent)':''}">${lbl}</div>
       <div>
-        <div class="event-name">${escHtml(e.name)}</div>
-        <div class="event-desc">${escHtml(e.desc)}</div>
+        <div class="event-name">${escHtml(e.what||'Event')}</div>
+        <div class="event-desc">${escHtml(e.room||'')}</div>
       </div>
     </div>`;
   }).join('');
