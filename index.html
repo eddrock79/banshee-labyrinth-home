@@ -62,10 +62,10 @@
   .top-row.solo{grid-template-columns:1fr;}
   @media(max-width:560px){.top-row{grid-template-columns:1fr;}}
   /* smart ticker */
-  .ticker{overflow:hidden;white-space:nowrap;background:var(--surface);border:1px solid var(--border);border-radius:10px;height:30px;display:flex;align-items:center;margin-bottom:14px;}
-  .ticker .tag{flex:0 0 auto;font-size:13px;padding:0 11px;color:var(--accent);border-right:1px solid var(--border);height:100%;display:flex;align-items:center;}
+  .ticker{overflow:hidden;white-space:nowrap;background:var(--surface);border:1px solid var(--border);border-radius:10px;height:34px;display:flex;align-items:center;margin-bottom:14px;}
+  .ticker .tag{flex:0 0 auto;font-size:14px;padding:0 12px;color:var(--accent);border-right:1px solid var(--border);height:100%;display:flex;align-items:center;}
   .ticker .win{flex:1;overflow:hidden;}
-  .ticker .track{display:inline-block;white-space:nowrap;padding-left:100%;font-size:11px;color:var(--muted);animation:tickerscroll 40s linear infinite;}
+  .ticker .track{display:inline-block;white-space:nowrap;padding-left:100%;font-size:12px;color:var(--muted);animation:tickerscroll 40s linear infinite;}
   .ticker .track b{color:var(--text);font-weight:600;}
   .ticker .track .sep{color:var(--accent);margin:0 16px;}
   .ticker:hover .track{animation-play-state:paused;}
@@ -596,13 +596,24 @@ const FALLBACK_JOKES=[
   {setup:'Why did the ghost go to the Banshee Labyrinth?',punchline:'It heard the spirits were lively.'},
   {setup:'What\'s a banshee\'s favourite kind of music?',punchline:'Anything with a good wail.'},
   {setup:'Why don\'t vampires drink at last orders?',punchline:'Too much pressure to neck it.'},
+  {setup:'Two ghosts walk into a bar.',punchline:'The barman says "Sorry, we don\'t serve spirits after midnight."'},
+  {setup:'A vampire walks into a bar and orders a Bloody Mary.',punchline:'"Hold the Mary."'},
+  {setup:'A zombie walks into a bar.',punchline:'"I\'ll have a beer… and whoever\'s on the brain platter."'},
+  {setup:'A werewolf walks into a bar and orders a drink.',punchline:'"Make it a howler."'},
+  {setup:'What\'s a ghost\'s favourite drink?',punchline:'A boo-s.'},
+  {setup:'Why are graveyards always so noisy?',punchline:'Because of all the coffin.'},
+  {setup:'Why did the skeleton go to the party alone?',punchline:'He had no body to go with.'},
+  {setup:'A mummy walks into a bar.',punchline:'He couldn\'t unwind.'},
+  {setup:'Why did the vampire check the Banshee Labyrinth\'s reviews?',punchline:'He was after fresh blood.'},
 ];
 let fbIdx=Math.floor(Math.random()*FALLBACK_JOKES.length);
 
 // ── SMART TICKER (jokes + live tidbits, scrolls under the top bar) ──
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 async function fetchJokes(n){
   try{
-    const res=await fetch(`https://v2.jokeapi.dev/joke/Any?safe-mode&blacklistFlags=nsfw,religious,political,racist,sexist,explicit&type=twopart&amount=${n}`);
+    // Spooky/Pun/Misc only — keeps it horror & pub-friendly, no programmer jokes
+    const res=await fetch(`https://v2.jokeapi.dev/joke/Spooky,Pun,Misc?safe-mode&blacklistFlags=nsfw,religious,political,racist,sexist,explicit&type=twopart&amount=${n}`);
     if(!res.ok) throw 0;
     const d=await res.json();
     const arr=Array.isArray(d.jokes)?d.jokes:(d.setup?[d]:[]);
@@ -612,8 +623,11 @@ async function fetchJokes(n){
 let tickerJokes=[];
 async function ensureJokes(){
   if(tickerJokes.length) return;
-  tickerJokes=await fetchJokes(6);
-  if(!tickerJokes.length) tickerJokes=FALLBACK_JOKES.map(j=>j.punchline?`${j.setup} — ${j.punchline}`:j.setup);
+  const curated=FALLBACK_JOKES.map(j=>j.punchline?`${j.setup} — ${j.punchline}`:j.setup);
+  const api=await fetchJokes(6);
+  // always feature several curated bar/horror jokes, blended with the API ones
+  const mix=[...shuffle(curated).slice(0, api.length?5:curated.length), ...api];
+  tickerJokes=shuffle(mix.length?mix:curated);
 }
 function noticeBit(){
   const list=cachedNotice();
