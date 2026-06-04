@@ -74,6 +74,8 @@
   .event-date{font-size:11px;font-weight:700;color:var(--accent);min-width:44px;padding-top:2px;letter-spacing:.5px;}
   .event-name{font-size:13px;font-weight:500;color:var(--text);line-height:1.4;}
   .event-desc{font-size:11px;color:var(--muted);margin-top:2px;}
+  .crew-chip{display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:5px 12px;margin:3px 5px 0 0;font-size:13px;color:var(--text);}
+  .crew-time{color:var(--muted);font-size:11px;}
 
   /* Notice board */
   .notice-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
@@ -152,6 +154,12 @@
   </div>
 
   <div class="main">
+
+    <!-- On tonight (from the rota) -->
+    <div class="card" id="tonight-card" style="display:none">
+      <div class="card-title" id="tonight-title">🌙 On Tonight</div>
+      <div id="tonight-content"></div>
+    </div>
 
     <!-- Weather + Notice side by side -->
     <div class="top-row">
@@ -249,6 +257,37 @@ async function loadEvents(){
     eventsFailed=false;
   }catch(e){ eventsFailed=true; }
   renderEvents();
+}
+
+// ── ON TONIGHT (rota crew, 7am-aware: a night counts until 7am next morning) ──
+const SHIFTS_URL='https://eddrock79.github.io/banshee-labyrinth-rotas/shifts.json';
+const SHIFTS_CACHE='bl_shifts';
+const DOW_FULL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function rotaDayInfo(){
+  const n=new Date(); const d=new Date(n);
+  if(n.getHours()<7) d.setDate(d.getDate()-1);
+  const iso=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  return {iso, name:DOW_FULL[d.getDay()]};
+}
+function cachedShifts(){ try{return JSON.parse(localStorage.getItem(SHIFTS_CACHE)||'{}');}catch(e){return {};} }
+async function loadTonight(){
+  renderTonight();
+  try{
+    const res=await fetch(SHIFTS_URL+'?t='+Date.now());
+    if(res.ok){ const data=await res.json(); localStorage.setItem(SHIFTS_CACHE,JSON.stringify(data.days||{})); }
+  }catch(e){}
+  renderTonight();
+}
+function renderTonight(){
+  const card=document.getElementById('tonight-card');
+  const el=document.getElementById('tonight-content');
+  if(!card||!el) return;
+  const info=rotaDayInfo();
+  const crew=(cachedShifts()||{})[info.iso]||[];
+  if(!crew.length){ card.style.display='none'; return; }
+  document.getElementById('tonight-title').textContent='🌙 On Tonight — '+info.name;
+  card.style.display='';
+  el.innerHTML=crew.map(c=>`<span class="crew-chip">${escHtml(c.name)}${c.start?` <span class="crew-time">${escHtml(c.start)}</span>`:''}</span>`).join('');
 }
 
 let livePin=null, liveSuper=null, pinEntry='', superEntry='', sheetId='', isManager=false;
@@ -360,6 +399,7 @@ function showApp(){
   loadNotice();
   renderHandover();
   loadEvents();
+  loadTonight();
   loadWeather();
   loadJoke();
   // pull the shared notice + handover from the sheet, then re-render both
